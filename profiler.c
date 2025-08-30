@@ -78,4 +78,46 @@ void report_top(int interval, long total_delta) {
 		return;
 	};
 
-	printf("\n===== TOP PROCESSES (interval %d ms =====\n", interval);
+	printf("\n===== TOP PROCESSES (interval %d ms) =====\n", interval);
+	printf("%-8s %-6s %s\n", "PID", "utime", "stime", "CPU%");
+
+	while ((ent = readdir(dir)) != NULL) {
+		if (!isdigit(ent->d_name[0])) {
+			continue;
+		};
+		int pid = atoi(ent->d_name);
+
+		cpu_stat_t st = prev_status[pid];
+		long delta = st.utime + st.stime;
+		if (delta > 0 && total_delta > 0) {
+			double percent = (100.0 * delta) / total_delta;
+			if (percent > 1.0) {
+				printf("%-8d %-6ld %-6ld %.2f%%\n", pid, st.utime, st.stime, percent);
+			};
+		};
+	};
+
+	closedir(dir);
+};
+
+int main(int argc, char *argv[]) {
+	if(argc < 3) {
+		fprintf(stderr, "Usage: %s <duration seconds> <interval_ms>\n", argv[0]);
+		return 1;
+	};
+
+	int duration = atoi(argv[1]);
+	int interval = atoi(argv[2]);
+
+	memset(prev_stats, 0, sizeof(prev_stats));
+	int iterations = (duration * 1000) / interval;
+
+	for (int i = 0; i < iterations; i++) {
+		long total_delta = 0;
+		sample_processes(&total_delta);
+		usleep(interval * 1000);
+		report_top(interval, total_delta);
+	};
+
+	return 0;
+};
